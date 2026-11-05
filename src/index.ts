@@ -104,7 +104,7 @@ export default class AutoCardLink extends Plugin {
       <label>摘要<textarea class="b3-text-field fn__block" data-field="description" rows="3"></textarea></label>
       <label>网站名称<input class="b3-text-field fn__block" data-field="site"></label>
       <label>封面网址或附件路径<input class="b3-text-field fn__block" data-field="image" placeholder="https://… 或 assets/…（可选）"></label>
-      <label><input type="checkbox" data-field="compact"> 紧凑卡片（隐藏封面和摘要）</label>
+      <label><input type="checkbox" data-field="compact"> 紧凑卡片（隐藏摘要，保留小封面）</label>
       <label><input type="checkbox" data-field="remoteImages"> 加载远程封面和网站图标</label>
       </div><div class="b3-dialog__action"><button class="b3-button b3-button--cancel" data-action="cancel">取消</button><div class="fn__space"></div><button class="b3-button b3-button--text" data-action="save">保存卡片</button></div>`});
     this.dialogs.add(dialog);
@@ -154,7 +154,7 @@ export default class AutoCardLink extends Plugin {
     this.setting = new Setting({confirmCallback: () => { void this.saveData("settings.json", this.options).catch(() => showMessage("设置保存失败，请重试")); }});
     for (const [key, title, description] of [
       ["autoPaste", "粘贴网址自动生成卡片", "仅接管空白段落中的单个网址；正文、代码、表格、图片和文件保持原粘贴方式。"],
-      ["compact", "默认使用紧凑卡片", "隐藏封面和摘要；每张卡片可单独调整。"],
+      ["compact", "默认使用紧凑卡片", "隐藏摘要，保留小封面；每张卡片可单独调整。"],
       ["remoteImages", "默认加载远程图片", "允许下载封面和加载远程图标；关闭后仍显示已保存的本地封面。已有卡片请在块菜单中修改。"],
       ["cacheImages", "封面保存为本地附件", "默认开启。通过思源内核下载封面，减少防盗链、离线和临时链接过期的影响。"]
     ] as const) {

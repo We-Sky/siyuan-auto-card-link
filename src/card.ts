@@ -57,7 +57,7 @@ if (!card) {
   address.textContent = new URL(card.url).hostname + new URL(card.url).pathname.replace(/\/$/, "");
   copy.append(address);
   link.append(copy);
-  if (card.image && (card.remoteImages !== false || card.image.startsWith("assets/")) && !card.compact) {
+  if (card.image && (card.remoteImages !== false || card.image.startsWith("assets/"))) {
     const cover = document.createElement("img");
     cover.className = "cover";
     cover.alt = "";
