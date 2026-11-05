@@ -1,6 +1,6 @@
 {
   "name": "siyuan-auto-card-link",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Beautiful, durable link preview cards for SiYuan",
   "type": "module",

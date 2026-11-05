@@ -2,7 +2,7 @@
   "name": "siyuan-auto-card-link",
   "author": "We-Sky",
   "url": "https://github.com/We-Sky/siyuan-auto-card-link",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "minAppVersion": "3.8.9",
   "backends": ["all"],
   "frontends": ["desktop", "desktop-window", "browser-desktop", "mobile", "browser-mobile"],

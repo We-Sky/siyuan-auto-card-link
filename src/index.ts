@@ -1,10 +1,10 @@
 import {Plugin, Dialog, Setting, showMessage} from "siyuan";
-import {cardHTML, fallbackCard, normalizeCard, readCard, singleURL, webURL, type CardData} from "./core";
-import {api, fetchCard} from "./network";
+import {cardHTML, cardMarkdown, fallbackCard, imagePath, normalizeCard, readCard, singleURL, webURL, type CardData} from "./core";
+import {api, cacheCover, fetchCard} from "./network";
 
-type Options = {autoPaste: boolean; compact: boolean; remoteImages: boolean; timeout: number};
-const defaults: Options = {autoPaste: true, compact: false, remoteImages: true, timeout: 7000};
-type PasteDetail = {textPlain: string; textHTML: string; siyuanHTML: string; files?: {length: number}; protyle: {disabled?: boolean}; resolve: (data: {textPlain?: string; textHTML?: string; siyuanHTML?: string; files?: unknown}) => void};
+type Options = {autoPaste: boolean; compact: boolean; remoteImages: boolean; cacheImages: boolean; timeout: number};
+const defaults: Options = {autoPaste: true, compact: false, remoteImages: true, cacheImages: true, timeout: 7000};
+type PasteDetail = {textPlain: string; textHTML: string; siyuanHTML: string; files?: {length: number}; protyle: {disabled?: boolean; lute?: {Md2BlockDOM: (md: string) => string}}; resolve: (data: {textPlain?: string; textHTML?: string; siyuanHTML?: string; files?: unknown}) => void};
 type BlockMenuDetail = {menu: {addItem: (item: {label: string; icon?: string; click: () => void}) => void}; blockElements: HTMLElement[]};
 
 export default class AutoCardLink extends Plugin {
@@ -27,7 +27,7 @@ export default class AutoCardLink extends Plugin {
       if (!id || protyle.disabled) { showMessage("请先把光标放在可编辑的笔记块中"); return; }
       const selection = window.getSelection()?.toString().trim() || "";
       this.editDialog(singleURL(selection), undefined, async card => {
-        await api("/api/block/insertBlock", {dataType: "markdown", data: cardHTML(card), previousID: id});
+        await api("/api/block/insertBlock", {dataType: "markdown", data: cardMarkdown(card), previousID: id});
       });
     }});
     this.protyleSlash = [{filter: ["cardlink", "链接卡片", "ljkp"], html: '<span class="b3-list-item__text">插入链接卡片</span>', id: "insert-card-link", callback: protyle => {
@@ -38,7 +38,7 @@ export default class AutoCardLink extends Plugin {
         const selection = window.getSelection();
         selection?.removeAllRanges(); selection?.addRange(range);
         if (!protyle.protyle.lute) throw new Error("编辑器尚未就绪，请重试");
-        protyle.insert(protyle.protyle.lute.Md2BlockDOM(cardHTML(card)), true);
+        protyle.insert(protyle.protyle.lute.Md2BlockDOM(cardMarkdown(card)), true);
       });
     }}];
   }
@@ -65,7 +65,8 @@ export default class AutoCardLink extends Plugin {
     event.preventDefault();
     void this.makeCard(url).then(card => {
       if (!card.fetched) showMessage("未取得网页信息，已保留链接卡片，可在块菜单补充标题和封面", 5000);
-      d.resolve(this.stopped ? {textPlain: d.textPlain, textHTML: d.textHTML, siyuanHTML: d.siyuanHTML, files: d.files} : {textPlain: "", textHTML: cardHTML(card)});
+      d.resolve(this.stopped ? {textPlain: d.textPlain, textHTML: d.textHTML, siyuanHTML: d.siyuanHTML, files: d.files} :
+        d.protyle.lute ? {siyuanHTML: d.protyle.lute.Md2BlockDOM(cardMarkdown(card)), textPlain: "", textHTML: ""} : {textPlain: "", textHTML: cardHTML(card)});
     }).catch(() => d.resolve({textPlain: d.textPlain, textHTML: d.textHTML, siyuanHTML: d.siyuanHTML, files: d.files}));
   };
 
@@ -77,13 +78,21 @@ export default class AutoCardLink extends Plugin {
     const data = readCard(iframe?.getAttribute("src") || iframe?.getAttribute("data-src") || "");
     if (!data || !block.dataset.nodeId) return;
     const id = block.dataset.nodeId;
-    menu.addItem({label: "编辑链接卡片", icon: "iconEdit", click: () => this.editDialog(data.url, data, card => api("/api/block/updateBlock", {id, dataType: "markdown", data: cardHTML(card)}).then(() => undefined))});
+    menu.addItem({label: "编辑链接卡片", icon: "iconEdit", click: () => this.editDialog(data.url, data, card => api("/api/block/updateBlock", {id, dataType: "markdown", data: cardMarkdown(card)}).then(() => undefined))});
+    menu.addItem({label: "重新获取封面", icon: "iconRefresh", click: () => {
+      void this.makeCard(data.url).then(async fresh => {
+        if (!fresh.image) { showMessage("未获取到封面，原卡片已保留；网站可能要求登录或验证", 6000); return; }
+        await api("/api/block/updateBlock", {id, dataType: "markdown", data: cardMarkdown({...data, image: fresh.image, imageSource: fresh.imageSource, imageStatus: fresh.imageStatus})});
+        showMessage(fresh.imageStatus === "cached" ? "封面已更新并保存为本地附件" : "封面已更新；本地下载失败，暂用远程地址");
+      }).catch(error => showMessage(String(error)));
+    }});
     menu.addItem({label: "复制原网址", icon: "iconCopy", click: () => { void navigator.clipboard.writeText(data.url).catch(() => showMessage("复制失败，请从编辑窗口复制网址")); }});
     menu.addItem({label: "还原为普通链接", icon: "iconLink", click: () => { void api("/api/block/updateBlock", {id, dataType: "markdown", data: `<${data.url.replace(/>/g, "%3E")}>`}).catch(error => showMessage(String(error))); }});
   };
 
   private async makeCard(url: string) {
-    const card = await fetchCard(url, this.options.timeout);
+    let card = await fetchCard(url, this.options.timeout);
+    if (this.options.cacheImages && this.options.remoteImages) card = await cacheCover(card, this.options.timeout);
     return {...card, compact: this.options.compact, remoteImages: this.options.remoteImages};
   }
 
@@ -94,7 +103,7 @@ export default class AutoCardLink extends Plugin {
       <label>标题<input class="b3-text-field fn__block" data-field="title" placeholder="留空时使用域名"></label>
       <label>摘要<textarea class="b3-text-field fn__block" data-field="description" rows="3"></textarea></label>
       <label>网站名称<input class="b3-text-field fn__block" data-field="site"></label>
-      <label>封面网址<input class="b3-text-field fn__block" data-field="image" placeholder="https://…（可选）"></label>
+      <label>封面网址或附件路径<input class="b3-text-field fn__block" data-field="image" placeholder="https://… 或 assets/…（可选）"></label>
       <label><input type="checkbox" data-field="compact"> 紧凑卡片（隐藏封面和摘要）</label>
       <label><input type="checkbox" data-field="remoteImages"> 加载远程封面和网站图标</label>
       </div><div class="b3-dialog__action"><button class="b3-button b3-button--cancel" data-action="cancel">取消</button><div class="fn__space"></div><button class="b3-button b3-button--text" data-action="save">保存卡片</button></div>`});
@@ -123,7 +132,7 @@ export default class AutoCardLink extends Plugin {
         card.compact = (field("compact") as HTMLInputElement).checked;
         card.remoteImages = (field("remoteImages") as HTMLInputElement).checked;
         if (card.fetched) { snapshot = card; fill(card); }
-        status.textContent = card.fetched ? "已获取，可继续编辑" : "无法获取，可手动填写后保存";
+        status.textContent = card.fetched ? card.imageStatus === "cached" ? "已获取；封面已保存到本地附件" : card.image ? "已获取；封面使用远程地址" : "已获取文字，未发现封面，可手动填写" : "无法获取，网站可能要求验证；可手动填写";
       } else { status.textContent = "内容已修改，请重新获取或手动保存"; }
       fetchButton.disabled = false; saveButton.disabled = false;
     });
@@ -131,8 +140,10 @@ export default class AutoCardLink extends Plugin {
       try {
         saveButton.disabled = true;
         const data = {...snapshot, url: field("url").value.trim(), title: field("title").value, description: field("description").value, site: field("site").value, image: field("image").value.trim(), compact: (field("compact") as HTMLInputElement).checked, remoteImages: (field("remoteImages") as HTMLInputElement).checked};
-        if (data.image && !webURL(data.image)) throw new Error("封面需要完整的 http(s) 图片网址");
-        await save(normalizeCard(data));
+        if (data.image && !imagePath(data.image)) throw new Error("封面需要完整的 http(s) 图片网址或 assets/ 附件路径");
+        let card = normalizeCard(data);
+        if (this.options.cacheImages && card.remoteImages !== false && webURL(card.image)) card = await cacheCover(card, this.options.timeout);
+        await save(card);
         dialog.destroy();
       } catch (error) { status.textContent = String(error instanceof Error ? error.message : error); saveButton.disabled = false; }
     });
@@ -144,7 +155,8 @@ export default class AutoCardLink extends Plugin {
     for (const [key, title, description] of [
       ["autoPaste", "粘贴网址自动生成卡片", "仅接管空白段落中的单个网址；正文、代码、表格、图片和文件保持原粘贴方式。"],
       ["compact", "默认使用紧凑卡片", "隐藏封面和摘要；每张卡片可单独调整。"],
-      ["remoteImages", "默认加载远程图片", "打开卡片时向原网站请求封面和图标；关闭可减少远程请求。已有卡片请在块菜单中修改。"]
+      ["remoteImages", "默认加载远程图片", "允许下载封面和加载远程图标；关闭后仍显示已保存的本地封面。已有卡片请在块菜单中修改。"],
+      ["cacheImages", "封面保存为本地附件", "默认开启。通过思源内核下载封面，减少防盗链、离线和临时链接过期的影响。"]
     ] as const) {
       const input = document.createElement("input"); input.type = "checkbox"; input.className = "b3-switch"; input.checked = this.options[key];
       input.addEventListener("change", () => { this.options[key] = input.checked; });

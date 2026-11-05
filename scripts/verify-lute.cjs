@@ -23,3 +23,7 @@ for (const method of ['Md2BlockDOM','HTML2BlockDOM']) {
   assert.match(reopened, /height: 156px/);
   console.log(`${method}: native widget, metadata and dimensions survive export/reimport`);
 }
+const local=lute.Md2BlockDOM(html+'\n{: custom-data-assets="assets/cardlink-cover.jpg"}\n');
+assert.match(local,/custom-data-assets="assets\/cardlink-cover.jpg"/);
+assert.match(lute.Md2BlockDOM(lute.BlockDOM2Md(local)),/custom-data-assets="assets\/cardlink-cover.jpg"/);
+console.log('Local cover asset reference survives export/reimport');

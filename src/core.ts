@@ -1,3 +1,5 @@
+import {extraPreview} from "./extract";
+
 export interface CardData {
   version: 1;
   url: string;
@@ -9,9 +11,15 @@ export interface CardData {
   fetched: boolean;
   compact?: boolean;
   remoteImages?: boolean;
+  imageSource?: string;
+  imageStatus?: "cached" | "remote" | "missing";
 }
 
 export const PLUGIN = "siyuan-auto-card-link";
+export function imagePath(value: string): string {
+  if (/^\/?assets\/[A-Za-z0-9_\-./%]+$/.test(value) && !/\.\.|%2e|%2f|%5c/i.test(value)) return value.replace(/^\//, "");
+  return webURL(value);
+}
 export function webURL(value: string, base?: string): string {
   try {
     const url = new URL(value, base);
@@ -52,9 +60,13 @@ export function metadata(html: string, url: string): CardData {
   const base = webURL(doc.querySelector("base[href]")?.getAttribute("href") || "", url) || url;
   const image = pick("og:image:secure_url", "og:image", "twitter:image", "twitter:image:src");
   card.image = image ? webURL(image, base) : "";
+  const extra = extraPreview(doc, base);
+  card.image ||= extra.image || "";
+  if (!pick("og:title", "twitter:title") && extra.title) card.title = clean(extra.title, 300);
+  if (!card.description && extra.description) card.description = clean(extra.description, 1000);
   const icon = Array.from(doc.querySelectorAll("link[rel][href]")).find(el => /(^|\s)(icon|apple-touch-icon)(\s|$)/i.test(el.getAttribute("rel") || ""));
   card.favicon = webURL(icon?.getAttribute("href") || "/favicon.ico", base);
-  card.fetched = Boolean(doc.title || pick("og:title", "twitter:title", "description", "og:description"));
+  card.fetched = Boolean(card.image || doc.title || pick("og:title", "twitter:title", "description", "og:description"));
   // An anti-bot/login response is not a useful preview.
   if (/^(just a moment|access denied|attention required|verify you are human|安全验证|验证中心)/i.test(card.title)) return fallbackCard(url);
   return card;
@@ -68,7 +80,9 @@ export function normalizeCard(value: unknown): CardData {
     if (typeof data[key] === "string") card[key] = clean(data[key], key === "description" ? 1000 : 300);
   }
   card.title ||= new URL(card.url).hostname;
-  card.image = typeof data.image === "string" ? webURL(data.image) : "";
+  card.image = typeof data.image === "string" ? imagePath(data.image) : "";
+  card.imageSource = typeof data.imageSource === "string" ? webURL(data.imageSource) : "";
+  card.imageStatus = data.imageStatus === "cached" || data.imageStatus === "remote" || data.imageStatus === "missing" ? data.imageStatus : undefined;
   card.favicon = typeof data.favicon === "string" ? webURL(data.favicon) : "";
   card.fetched = data.fetched === true;
   card.compact = data.compact === true;
@@ -80,6 +94,12 @@ export function cardHTML(data: CardData): string {
   const encoded = encodeURIComponent(JSON.stringify(normalizeCard(data)));
   const height = data.compact ? 112 : 156;
   return `<iframe src="/plugins/${PLUGIN}/card.html#${encoded}" data-src="/plugins/${PLUGIN}/card.html#${encoded}" data-subtype="widget" border="0" frameborder="no" framespacing="0" allowfullscreen="false" style="width: 100%; height: ${height}px;"></iframe>`;
+}
+
+export function cardMarkdown(data: CardData): string {
+  const local = imagePath(data.image);
+  // SiYuan tracks custom-data-assets on widgets during unused-asset cleanup.
+  return cardHTML(data) + (local.startsWith("assets/") ? `\n{: custom-data-assets="${local}"}\n` : "");
 }
 
 export function readCard(src: string): CardData | null {

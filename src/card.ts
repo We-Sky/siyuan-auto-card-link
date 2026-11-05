@@ -1,4 +1,5 @@
-import {readCard} from "./core";
+import {readCard, webURL} from "./core";
+import {coverBlob} from "./network";
 
 const card = readCard(location.href);
 const root = document.getElementById("card")!;
@@ -56,13 +57,23 @@ if (!card) {
   address.textContent = new URL(card.url).hostname + new URL(card.url).pathname.replace(/\/$/, "");
   copy.append(address);
   link.append(copy);
-  if (card.image && card.remoteImages !== false && !card.compact) {
+  if (card.image && (card.remoteImages !== false || card.image.startsWith("assets/")) && !card.compact) {
     const cover = document.createElement("img");
     cover.className = "cover";
     cover.alt = "";
-    cover.src = card.image;
+    cover.src = card.image.startsWith("assets/") ? "/" + card.image : card.image;
     cover.referrerPolicy = "no-referrer";
-    cover.addEventListener("error", () => cover.remove(), {once: true});
+    cover.addEventListener("error", async () => {
+      const remote = webURL(card.imageSource || card.image);
+      if (!remote || card.remoteImages === false) { cover.remove(); return; }
+      try {
+        const blob = await coverBlob(remote, card.url, 5000);
+        const objectURL = URL.createObjectURL(blob);
+        window.addEventListener("pagehide", () => URL.revokeObjectURL(objectURL), {once: true});
+        cover.addEventListener("error", () => { URL.revokeObjectURL(objectURL); cover.remove(); }, {once: true});
+        cover.src = objectURL;
+      } catch { cover.remove(); link.title = `${card.url}\n封面加载失败，可在块菜单重新获取封面`; }
+    }, {once: true});
     link.append(cover);
   }
   const arrow = document.createElement("span");
