@@ -1,0 +1,9 @@
+node_modules/
+dist/
+artifacts/
+.reference/
+.auth/
+*.log
+output/
+.playwright/
+.playwright-cli/

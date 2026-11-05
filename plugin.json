@@ -1,0 +1,13 @@
+{
+  "name": "siyuan-auto-card-link",
+  "author": "We-Sky",
+  "url": "https://github.com/We-Sky/siyuan-auto-card-link",
+  "version": "0.1.0",
+  "minAppVersion": "3.8.9",
+  "backends": ["all"],
+  "frontends": ["desktop", "desktop-window", "browser-desktop", "mobile", "browser-mobile"],
+  "displayName": {"default": "Auto Card Link", "zh_CN": "自动链接卡片", "zh-CN": "自动链接卡片"},
+  "description": {"default": "Turn pasted URLs into clean, editable preview cards.", "zh_CN": "粘贴网址生成精美卡片，支持封面、摘要、编辑和失败降级。", "zh-CN": "粘贴网址生成精美卡片，支持封面、摘要、编辑和失败降级。"},
+  "readme": {"default": "README.md"},
+  "keywords": ["cardlink", "link preview", "链接卡片", "书签", "Obsidian"]
+}
