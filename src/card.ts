@@ -20,66 +20,80 @@ try {
 if (!card) {
   root.textContent = "卡片数据无效，请通过块菜单重新编辑。";
 } else {
-  root.classList.toggle("compact", !!card.compact);
+  root.dataset.view = card.view || "card";
+  const compact = card.view !== "link" && card.compact;
+  root.classList.toggle("compact", !!compact);
   const link = document.createElement("a");
   link.href = card.url;
   link.target = "_blank";
   link.rel = "noopener noreferrer";
   link.className = "card-link";
   link.title = card.url;
-  const copy = document.createElement("div");
-  copy.className = "copy";
-  const site = document.createElement("div");
-  site.className = "site";
-  if (card.favicon && card.remoteImages !== false) {
-    const favicon = document.createElement("img");
-    favicon.src = card.favicon;
-    favicon.referrerPolicy = "no-referrer";
-    favicon.alt = "";
-    favicon.addEventListener("error", () => favicon.remove(), {once: true});
-    site.append(favicon);
+  if (card.view === "link") {
+    link.textContent = card.linkText || card.url;
+    root.append(link);
+  } else {
+    const copy = document.createElement("div");
+    copy.className = "copy";
+    const site = document.createElement("div");
+    site.className = "site";
+    if (card.favicon && card.remoteImages !== false) {
+      const favicon = document.createElement("img");
+      favicon.src = card.favicon;
+      favicon.referrerPolicy = "no-referrer";
+      favicon.alt = "";
+      favicon.addEventListener("error", () => favicon.remove(), {once: true});
+      site.append(favicon);
+    }
+    const name = document.createElement("span");
+    name.textContent = card.site || new URL(card.url).hostname;
+    site.append(name);
+    const title = document.createElement("div");
+    title.className = "title";
+    title.textContent = card.title;
+    copy.append(site, title);
+    if (card.description && !compact) {
+      const description = document.createElement("div");
+      description.className = "description";
+      description.textContent = card.description;
+      copy.append(description);
+    }
+    const address = document.createElement("div");
+    address.className = "address";
+    address.textContent = new URL(card.url).hostname + new URL(card.url).pathname.replace(/\/$/, "");
+    copy.append(address);
+    link.append(copy);
+    if (card.image && (card.remoteImages !== false || card.image.startsWith("assets/"))) {
+      const cover = document.createElement("img");
+      cover.className = "cover";
+      cover.alt = "";
+      cover.src = card.image.startsWith("assets/") ? "/" + card.image : card.image;
+      cover.referrerPolicy = "no-referrer";
+      cover.addEventListener("error", async () => {
+        const remote = webURL(card.imageSource || card.image);
+        if (!remote || card.remoteImages === false) { cover.remove(); return; }
+        try {
+          const blob = await coverBlob(remote, card.url, 5000);
+          const objectURL = URL.createObjectURL(blob);
+          window.addEventListener("pagehide", () => URL.revokeObjectURL(objectURL), {once: true});
+          cover.addEventListener("error", () => { URL.revokeObjectURL(objectURL); cover.remove(); }, {once: true});
+          cover.src = objectURL;
+        } catch { cover.remove(); link.title = `${card.url}\n封面加载失败，可在块菜单重新获取封面`; }
+      }, {once: true});
+      link.append(cover);
+    }
+    const arrow = document.createElement("span");
+    arrow.className = "arrow";
+    arrow.textContent = "↗";
+    arrow.setAttribute("aria-hidden", "true");
+    link.append(arrow);
+    root.append(link);
   }
-  const name = document.createElement("span");
-  name.textContent = card.site || new URL(card.url).hostname;
-  site.append(name);
-  const title = document.createElement("div");
-  title.className = "title";
-  title.textContent = card.title;
-  copy.append(site, title);
-  if (card.description && !card.compact) {
-    const description = document.createElement("div");
-    description.className = "description";
-    description.textContent = card.description;
-    copy.append(description);
+  if (window.parent !== window) {
+    const signal = (active: boolean) => window.parent.postMessage({type: "siyuan-cardlink-hover", active}, location.origin);
+    root.addEventListener("pointerenter", () => signal(true));
+    root.addEventListener("pointerleave", () => signal(false));
+    link.addEventListener("focus", () => signal(true));
+    link.addEventListener("blur", () => signal(false));
   }
-  const address = document.createElement("div");
-  address.className = "address";
-  address.textContent = new URL(card.url).hostname + new URL(card.url).pathname.replace(/\/$/, "");
-  copy.append(address);
-  link.append(copy);
-  if (card.image && (card.remoteImages !== false || card.image.startsWith("assets/"))) {
-    const cover = document.createElement("img");
-    cover.className = "cover";
-    cover.alt = "";
-    cover.src = card.image.startsWith("assets/") ? "/" + card.image : card.image;
-    cover.referrerPolicy = "no-referrer";
-    cover.addEventListener("error", async () => {
-      const remote = webURL(card.imageSource || card.image);
-      if (!remote || card.remoteImages === false) { cover.remove(); return; }
-      try {
-        const blob = await coverBlob(remote, card.url, 5000);
-        const objectURL = URL.createObjectURL(blob);
-        window.addEventListener("pagehide", () => URL.revokeObjectURL(objectURL), {once: true});
-        cover.addEventListener("error", () => { URL.revokeObjectURL(objectURL); cover.remove(); }, {once: true});
-        cover.src = objectURL;
-      } catch { cover.remove(); link.title = `${card.url}\n封面加载失败，可在块菜单重新获取封面`; }
-    }, {once: true});
-    link.append(cover);
-  }
-  const arrow = document.createElement("span");
-  arrow.className = "arrow";
-  arrow.textContent = "↗";
-  arrow.setAttribute("aria-hidden", "true");
-  link.append(arrow);
-  root.append(link);
 }

@@ -1,5 +1,9 @@
 import {extraPreview} from "./extract";
 
+export const views = {link: "链接视图", card: "卡片视图"} as const;
+export type CardView = keyof typeof views;
+export const linkCacheAttribute = "custom-cardlink-data";
+
 export interface CardData {
   version: 1;
   url: string;
@@ -9,6 +13,8 @@ export interface CardData {
   image: string;
   favicon: string;
   fetched: boolean;
+  view?: CardView;
+  linkText?: string;
   compact?: boolean;
   remoteImages?: boolean;
   imageSource?: string;
@@ -85,6 +91,8 @@ export function normalizeCard(value: unknown): CardData {
   card.imageStatus = data.imageStatus === "cached" || data.imageStatus === "remote" || data.imageStatus === "missing" ? data.imageStatus : undefined;
   card.favicon = typeof data.favicon === "string" ? webURL(data.favicon) : "";
   card.fetched = data.fetched === true;
+  if (data.view === "link") card.view = "link"; // Older cards may still contain the iframe link view.
+  if (typeof data.linkText === "string") card.linkText = clean(data.linkText, 1000);
   card.compact = data.compact === true;
   card.remoteImages = data.remoteImages !== false;
   return card;
@@ -97,9 +105,30 @@ export function cardHTML(data: CardData): string {
 }
 
 export function cardMarkdown(data: CardData): string {
+  return cardHTML({...data, view: undefined}) + blockAttributes(data);
+}
+
+export function linkMarkdown(data: CardData): string {
+  const label = data.linkText?.replace(/[\\\[\]*_`~!&<>$]/g, "\\$&");
+  const destination = `<${data.url.replace(/>/g, "%3E")}>`;
+  const link = label ? `[${label}](${destination})` : destination;
+  return link + blockAttributes(data, `${linkCacheAttribute}="${encodeURIComponent(JSON.stringify(normalizeCard({...data, view: undefined})))}"`);
+}
+
+function blockAttributes(data: CardData, cachedCard?: string): string {
   const local = imagePath(data.image);
-  // SiYuan tracks custom-data-assets on widgets during unused-asset cleanup.
-  return cardHTML(data) + (local.startsWith("assets/") ? `\n{: custom-data-assets="${local}"}\n` : "");
+  const attrs = [cachedCard];
+  if (local.startsWith("assets/")) attrs.push(`custom-data-assets="${local}"`);
+  const serialized = attrs.filter(Boolean).join(" ");
+  return serialized ? `\n{: ${serialized}}\n` : "";
+}
+
+export function readLinkCache(encoded: string, url: string): CardData | null {
+  try {
+    if (!encoded || encoded.length > 30000) return null;
+    const data = normalizeCard(JSON.parse(decodeURIComponent(encoded)));
+    return data.url === url ? data : null;
+  } catch { return null; }
 }
 
 export function readCard(src: string): CardData | null {

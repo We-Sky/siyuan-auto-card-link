@@ -1,0 +1,32 @@
+.siyuan-cardlink-views {
+  position: fixed;
+  z-index: 90;
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--b3-border-color);
+  border-radius: 8px;
+  background: var(--b3-theme-background);
+  box-shadow: 0 4px 14px #0003;
+}
+.siyuan-cardlink-views[hidden] { display: none; }
+/* Saved preview blocks from 0.2.0 render at normal card height. */
+.protyle-wysiwyg [data-type="NodeWidget"]:has(iframe[data-src^="/plugins/siyuan-auto-card-link/card.html#"][data-src*="%22view%22%3A%22preview%22"]) { height: 156px !important; }
+.protyle-wysiwyg [data-type="NodeWidget"]:has(iframe[data-src^="/plugins/siyuan-auto-card-link/card.html#"][data-src*="%22view%22%3A%22preview%22"][data-src*="%22compact%22%3Atrue"]) { height: 112px !important; }
+.siyuan-cardlink-views button {
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--b3-theme-on-background);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.siyuan-cardlink-views button:hover,
+.siyuan-cardlink-views button:focus-visible { background: var(--b3-list-hover); }
+.siyuan-cardlink-views button[aria-pressed="true"] {
+  color: var(--b3-theme-primary);
+  cursor: default;
+}

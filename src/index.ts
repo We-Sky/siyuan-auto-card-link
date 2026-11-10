@@ -1,6 +1,7 @@
 import {Plugin, Dialog, Setting, showMessage} from "siyuan";
 import {cardHTML, cardMarkdown, fallbackCard, imagePath, normalizeCard, readCard, singleURL, webURL, type CardData} from "./core";
 import {api, cacheCover, fetchCard} from "./network";
+import {ViewSwitcher} from "./views";
 
 type Options = {autoPaste: boolean; compact: boolean; remoteImages: boolean; cacheImages: boolean; timeout: number};
 const defaults: Options = {autoPaste: true, compact: false, remoteImages: true, cacheImages: true, timeout: 7000};
@@ -11,11 +12,13 @@ export default class AutoCardLink extends Plugin {
   private options = {...defaults};
   private stopped = false;
   private dialogs = new Set<Dialog>();
+  private viewSwitcher?: ViewSwitcher;
   async onload() {
     const stored = await this.loadData("settings.json").catch(() => null);
     this.options = {...defaults, ...stored};
     this.options.timeout = Math.max(2000, Math.min(15000, Number(this.options.timeout) || 7000));
     this.initSettings();
+    this.viewSwitcher = new ViewSwitcher(url => this.makeCard(url), message => showMessage(message));
     this.eventBus.on("paste", this.onPaste);
     this.eventBus.on("click-blockicon", this.onBlockMenu);
     this.addCommand({langKey: "insertCard", hotkey: "⇧⌘K", editorCallback: protyle => {
@@ -45,6 +48,7 @@ export default class AutoCardLink extends Plugin {
 
   onunload() {
     this.stopped = true;
+    this.viewSwitcher?.destroy();
     this.dialogs.forEach(dialog => dialog.destroy());
     this.dialogs.clear();
     this.eventBus.off("paste", this.onPaste);
@@ -76,7 +80,7 @@ export default class AutoCardLink extends Plugin {
     const block = blockElements[0];
     const iframe = block.querySelector("iframe");
     const data = readCard(iframe?.getAttribute("src") || iframe?.getAttribute("data-src") || "");
-    if (!data || !block.dataset.nodeId) return;
+    if (!data || !iframe || !block.dataset.nodeId) return;
     const id = block.dataset.nodeId;
     menu.addItem({label: "编辑链接卡片", icon: "iconEdit", click: () => this.editDialog(data.url, data, card => api("/api/block/updateBlock", {id, dataType: "markdown", data: cardMarkdown(card)}).then(() => undefined))});
     menu.addItem({label: "重新获取封面", icon: "iconRefresh", click: () => {
@@ -86,8 +90,8 @@ export default class AutoCardLink extends Plugin {
         showMessage(fresh.imageStatus === "cached" ? "封面已更新并保存为本地附件" : "封面已更新；本地下载失败，暂用远程地址");
       }).catch(error => showMessage(String(error)));
     }});
-    menu.addItem({label: "复制原网址", icon: "iconCopy", click: () => { void navigator.clipboard.writeText(data.url).catch(() => showMessage("复制失败，请从编辑窗口复制网址")); }});
-    menu.addItem({label: "还原为普通链接", icon: "iconLink", click: () => { void api("/api/block/updateBlock", {id, dataType: "markdown", data: `<${data.url.replace(/>/g, "%3E")}>`}).catch(error => showMessage(String(error))); }});
+    menu.addItem({label: "复制原网址", icon: "iconCopy", click: () => { void this.viewSwitcher?.copyLink(data.url); }});
+    menu.addItem({label: "还原为普通链接", icon: "iconLink", click: () => { void this.viewSwitcher?.update(block, "link", iframe); }});
   };
 
   private async makeCard(url: string) {
@@ -131,7 +135,7 @@ export default class AutoCardLink extends Plugin {
       if (currentRevision === revision && dialog.element.isConnected) {
         card.compact = (field("compact") as HTMLInputElement).checked;
         card.remoteImages = (field("remoteImages") as HTMLInputElement).checked;
-        if (card.fetched) { snapshot = card; fill(card); }
+        if (card.fetched) { snapshot = {...card, linkText: snapshot.linkText}; fill(snapshot); }
         status.textContent = card.fetched ? card.imageStatus === "cached" ? "已获取；封面已保存到本地附件" : card.image ? "已获取；封面使用远程地址" : "已获取文字，未发现封面，可手动填写" : "无法获取，网站可能要求验证；可手动填写";
       } else { status.textContent = "内容已修改，请重新获取或手动保存"; }
       fetchButton.disabled = false; saveButton.disabled = false;

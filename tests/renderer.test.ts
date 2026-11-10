@@ -18,3 +18,12 @@ describe("cover visibility in saved cards", () => {
     expect(Boolean(document.querySelector(".description"))).toBe(!compact);
   });
 });
+
+it("renders a previously saved preview as a normal compact card", async () => {
+  const data = {...fallbackCard("https://example.com"), compact: true, view: "preview", description: "摘要", image: "assets/cover.jpg"};
+  history.replaceState(null, "", `/plugins/siyuan-auto-card-link/card.html#${encodeURIComponent(JSON.stringify(data))}`);
+  await import("../src/card");
+  expect(document.querySelector("[data-view=card].compact")).not.toBeNull();
+  expect(document.querySelector(".description")).toBeNull();
+  expect(document.querySelector(".cover")?.getAttribute("src")).toBe("/assets/cover.jpg");
+});
